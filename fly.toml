@@ -1,0 +1,11 @@
+app = "content-bot-bohdan"
+primary_region = "fra"
+
+[[mounts]]
+  source = "content_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
