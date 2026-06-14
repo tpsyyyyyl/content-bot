@@ -52,7 +52,6 @@ def _chat(system: str, user: str, *, max_tokens: int = 2048, model_key: str | No
                 temperature=0.7,
                 max_tokens=max_tokens,
             )
-            return resp.choices[0].message.content.strip()
         except Exception as exc:  # noqa: BLE001 — surface a clean message to the user
             last_exc = exc
             if _is_rate_limit(exc) and attempt < len(_RETRY_BACKOFF):
@@ -61,6 +60,11 @@ def _chat(system: str, user: str, *, max_tokens: int = 2048, model_key: str | No
                 time.sleep(delay)
                 continue
             break
+        else:
+            content = (resp.choices[0].message.content or "").strip()
+            if not content:
+                raise RuntimeError("⚠️ The AI returned an empty response. Please try again.")
+            return content
 
     logger.exception("Groq request failed", exc_info=last_exc)
     if last_exc is not None and _is_rate_limit(last_exc):

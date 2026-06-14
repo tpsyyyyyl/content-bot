@@ -4,16 +4,12 @@ from telegram.ext import ContextTypes
 
 from .. import ai, db
 from ..keyboards import model_kb
-
-
-def _identify(update: Update) -> int:
-    u = update.effective_user
-    return db.get_or_create_user(u.id, u.username)
+from ._common import identify
 
 
 async def settings_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/settings — show current model and let the user switch."""
-    user_id = _identify(update)
+    _, user_id = identify(update)
     current = db.get_model_key(user_id, ai.DEFAULT_MODEL_KEY)
     await update.message.reply_text(
         f"🔧 Current AI model: *{current}*\nPick one:",
@@ -29,6 +25,6 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     key = query.data[len("setmodel:"):]
     if key not in ai.MODELS:
         return
-    user_id = _identify(update)
+    _, user_id = identify(update)
     db.set_model_key(user_id, key)
     await query.edit_message_text(f"✅ Model set to *{key}*.", parse_mode="Markdown")

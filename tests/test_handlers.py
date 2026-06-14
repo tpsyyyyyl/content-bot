@@ -101,6 +101,16 @@ async def test_regenerate_reuses_last(monkeypatch, make_update, make_context):
 
 
 # ---------------------------------------------------------------------------
+# malformed callback data
+# ---------------------------------------------------------------------------
+
+async def test_malformed_gtone_callback_does_not_crash(make_update, make_context):
+    upd = make_update(callback_data="gtone:onlyone")  # missing the tone segment
+    await actions.on_callback(upd, make_context())  # must not raise ValueError
+    upd.callback_query.answer.assert_awaited()
+
+
+# ---------------------------------------------------------------------------
 # settings
 # ---------------------------------------------------------------------------
 

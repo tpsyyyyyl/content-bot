@@ -140,6 +140,14 @@ def test_model_key_selects_model(monkeypatch):
     assert captured["model"] == ai.MODELS["llama"]
 
 
+def test_none_content_raises_runtime_error(monkeypatch):
+    # Groq can return content=None (e.g. content_filter); must not crash with AttributeError.
+    monkeypatch.setattr(ai, "_get_client", lambda: make_client(content=None))
+    with pytest.raises(RuntimeError) as exc_info:
+        ai.generate("social_post", "x")
+    assert "empty" in exc_info.value.args[0].lower()
+
+
 def test_tone_and_length_reach_system_prompt(monkeypatch):
     captured = {}
 

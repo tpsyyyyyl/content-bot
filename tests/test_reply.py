@@ -18,6 +18,13 @@ def test_split_hard_splits_oversized_line():
     assert all(len(c) <= 4096 for c in chunks)
 
 
+async def test_reply_chunks_empty_text_sends_placeholder():
+    msg = SimpleNamespace(reply_text=AsyncMock())
+    await reply_chunks(msg, "")  # Telegram rejects an empty message
+    msg.reply_text.assert_awaited_once()
+    assert msg.reply_text.await_args.args[0] != ""
+
+
 async def test_reply_chunks_markup_on_last_only():
     msg = SimpleNamespace(reply_text=AsyncMock())
     text = "\n".join("x" * 100 for _ in range(60))

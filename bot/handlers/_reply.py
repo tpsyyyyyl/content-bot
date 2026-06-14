@@ -30,4 +30,4 @@ async def reply_chunks(message, text: str, reply_markup=None) -> None:
     chunks = _split(text)
     for i, chunk in enumerate(chunks):
         markup = reply_markup if i == len(chunks) - 1 else None
-        await message.reply_text(chunk, reply_markup=markup)
+        await message.reply_text(chunk or "…", reply_markup=markup)  # Telegram rejects empty text

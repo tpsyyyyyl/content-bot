@@ -3,32 +3,25 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from .. import db
+from ..config import CONTENT_TYPES
 from ..keyboards import templates_kb
+from ._common import identify
 from ._reply import reply_chunks
 
-# Emoji map for content types shown in history.
-_TYPE_EMOJI = {
-    "social_post": "📱",
-    "email": "✉️",
-    "ad_copy": "📢",
-    "blog_intro": "📝",
-    "linkedin_post": "💼",
-    "product_desc": "🛍️",
-    "translate": "🌐",
-    "summarize": "📋",
-    "image": "🖼️",
-}
+# Emoji for non-content-type history rows; content types derive from CONTENT_TYPES labels.
+_EXTRA_EMOJI = {"translate": "🌐", "summarize": "📋", "image": "🖼️"}
 
 
-def _identify(update: Update) -> tuple[int, int]:
-    u = update.effective_user
-    user_id = db.get_or_create_user(u.id, u.username)
-    return u.id, user_id
+def _emoji(type_key: str) -> str:
+    """Emoji for a history row's type — single-sourced from CONTENT_TYPES labels."""
+    if type_key in CONTENT_TYPES:
+        return CONTENT_TYPES[type_key][0].split()[0]
+    return _EXTRA_EMOJI.get(type_key, type_key)
 
 
 async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/history — show last 10 generations."""
-    _, user_id = _identify(update)
+    _, user_id = identify(update)
     rows = db.get_history(user_id, 10)
     if not rows:
         await update.message.reply_text("📭 No history yet.")
@@ -36,17 +29,17 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     lines = []
     for i, row in enumerate(rows, 1):
-        emoji = _TYPE_EMOJI.get(row["type"], row["type"])
+        emoji = _emoji(row["type"])
         prompt_short = (row["prompt"] or "")[:50]
         date_part = (row["created_at"] or "")[:10]
         lines.append(f"{i}. {emoji} · {prompt_short} · {date_part}")
 
-    await update.message.reply_text("📜 *Recent generations:*\n\n" + "\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("📜 Recent generations:\n\n" + "\n".join(lines))
 
 
 async def templates_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/templates — list saved templates with reuse buttons."""
-    _, user_id = _identify(update)
+    _, user_id = identify(update)
     rows = db.list_templates(user_id)
     if not rows:
         await update.message.reply_text(
@@ -76,7 +69,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     elif data.startswith("tpluse:"):
         template_id = int(data[len("tpluse:"):])
-        _, user_id = _identify(update)
+        _, user_id = identify(update)
         rows = db.list_templates(user_id)
         matched = next((r for r in rows if r["id"] == template_id), None)
         if matched is None:

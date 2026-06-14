@@ -29,4 +29,4 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("📊 No usage data yet.")
         return
     lines = [f"{i}. {row['username'] or 'unknown'} — {row['usage_count']}" for i, row in enumerate(rows, 1)]
-    await update.message.reply_text("🏆 *Top users:*\n\n" + "\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("🏆 Top users:\n\n" + "\n".join(lines))
