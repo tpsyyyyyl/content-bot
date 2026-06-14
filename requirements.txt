@@ -1,5 +1,6 @@
 python-telegram-bot==22.7
-groq
-httpx
-python-dotenv
-pytest
+groq==1.4.0
+httpx==0.28.1
+python-dotenv==1.2.2
+pytest==9.1.0
+pytest-asyncio==1.4.0

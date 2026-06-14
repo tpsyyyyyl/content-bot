@@ -3,10 +3,12 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from .. import db
+from ..config import ADMIN_TELEGRAM_ID
+from ..keyboards import main_menu_kb
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Register user and send a welcome message."""
+    """Register user, send a welcome message and show the main menu keyboard."""
     u = update.effective_user
     db.get_or_create_user(u.id, u.username)
     await update.message.reply_text(
@@ -17,8 +19,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "  /summarize — condense long text into key points\n"
         "  /image — generate an image from a description\n"
         "  /history — browse your recent generations\n"
-        "  /templates — reuse your saved content\n\n"
-        "Type /help for the full command list. Let's create something! 🚀"
+        "  /templates — reuse your saved content\n"
+        "  /settings — switch the AI model\n\n"
+        "Tap a button below, or /cancel anytime to stop. Type /help for the full list. Let's create something! 🚀",
+        reply_markup=main_menu_kb(is_admin=u.id == ADMIN_TELEGRAM_ID),
     )
 
 
@@ -32,6 +36,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/image — generate an image from a text prompt\n"
         "/history — see your last 10 generations\n"
         "/templates — list and reuse saved templates\n"
+        "/settings — switch the AI model (gpt-oss / llama)\n"
+        "/cancel — stop the current action\n"
         "/stats — admin: user & generation stats\n"
         "/top — admin: top 5 users by usage",
         parse_mode="Markdown",

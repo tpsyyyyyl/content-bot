@@ -53,6 +53,10 @@ def init_db() -> None:
             type       TEXT,
             content    TEXT
         );
+        CREATE TABLE IF NOT EXISTS settings (
+            user_id   INTEGER PRIMARY KEY,
+            model_key TEXT
+        );
         """
     )
     conn.commit()
@@ -141,6 +145,26 @@ def get_template(user_id: int, name: str) -> sqlite3.Row | None:
         "SELECT * FROM templates WHERE user_id = ? AND name = ?",
         (user_id, name),
     ).fetchone()
+
+
+def get_model_key(user_id: int, default: str) -> str:
+    """Return the user's chosen model key, or default if unset."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT model_key FROM settings WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return row["model_key"] if row else default
+
+
+def set_model_key(user_id: int, model_key: str) -> None:
+    """Persist the user's model choice (upsert)."""
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO settings (user_id, model_key) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET model_key = excluded.model_key",
+        (user_id, model_key),
+    )
+    conn.commit()
 
 
 def stats() -> dict:

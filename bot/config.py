@@ -34,7 +34,40 @@ CONTENT_TYPES = {
         "📝 Blog intro",
         "Write a compelling blog post introduction (3-4 sentences) that hooks the reader.",
     ),
+    "linkedin_post": (
+        "💼 LinkedIn post",
+        "Write a professional LinkedIn post: a strong opening line, a short insight or story, "
+        "and a closing question or takeaway. Use line breaks for readability.",
+    ),
+    "product_desc": (
+        "🛍️ Product description",
+        "Write a persuasive e-commerce product description. Lead with the key benefit, "
+        "cover 2-3 features, and end with a short call to action.",
+    ),
 }
+
+# Tone options for /generate: key -> label shown in the prompt.
+TONES = {
+    "professional": "professional",
+    "casual": "casual",
+    "funny": "funny",
+}
+
+# Length options for /generate: key -> (label, max_tokens).
+LENGTHS = {
+    "short": ("Short (~50 words)", 512),
+    "long": ("Long (~200 words)", 2048),
+}
+
+# Image aspect options for /image: key -> (label, width, height).
+IMAGE_RATIOS = {
+    "square": ("⬜ Square", 1024, 1024),
+    "landscape": ("🖼️ Landscape", 1280, 768),
+    "portrait": ("📱 Portrait", 768, 1280),
+}
+
+# Telegram hard limit on a single text message.
+TELEGRAM_MSG_LIMIT = 4096
 
 # Target languages for /translate: code -> label.
 LANGUAGES = {

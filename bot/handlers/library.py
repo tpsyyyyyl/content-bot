@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes
 
 from .. import db
 from ..keyboards import templates_kb
+from ._reply import reply_chunks
 
 # Emoji map for content types shown in history.
 _TYPE_EMOJI = {
@@ -11,6 +12,8 @@ _TYPE_EMOJI = {
     "email": "✉️",
     "ad_copy": "📢",
     "blog_intro": "📝",
+    "linkedin_post": "💼",
+    "product_desc": "🛍️",
     "translate": "🌐",
     "summarize": "📋",
     "image": "🖼️",
@@ -66,8 +69,8 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             return
         context.user_data["pending"] = {
             "action": "name_template",
-            "type": last["type"],
-            "content": last["content"],
+            "type": last["kind"],
+            "content": last["result"],
         }
         await query.message.reply_text("📝 Send a name for this template.")
 
@@ -79,4 +82,4 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if matched is None:
             await query.message.reply_text("⚠️ Template not found.")
             return
-        await query.message.reply_text(matched["content"])
+        await reply_chunks(query.message, matched["content"])

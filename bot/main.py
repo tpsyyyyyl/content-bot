@@ -4,7 +4,7 @@ import logging
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from . import config, db
-from .handlers import actions, admin, basic, library
+from .handlers import actions, admin, basic, library, menu, settings
 
 
 def main() -> None:
@@ -28,12 +28,18 @@ def main() -> None:
     app.add_handler(CommandHandler("image", actions.image_cmd))
     app.add_handler(CommandHandler("history", library.history_cmd))
     app.add_handler(CommandHandler("templates", library.templates_cmd))
+    app.add_handler(CommandHandler("settings", settings.settings_cmd))
+    app.add_handler(CommandHandler("cancel", actions.cancel_cmd))
     app.add_handler(CommandHandler("stats", admin.stats_cmd))
     app.add_handler(CommandHandler("top", admin.top_cmd))
 
     # Callbacks (split by regex so each module owns its namespace)
-    app.add_handler(CallbackQueryHandler(actions.on_callback, pattern=r"^(gen|tr):"))
+    app.add_handler(CallbackQueryHandler(actions.on_callback, pattern=r"^(gen|tr|gtone|glen|imgr|regen):"))
     app.add_handler(CallbackQueryHandler(library.on_callback, pattern=r"^(tpluse|tplsave)"))
+    app.add_handler(CallbackQueryHandler(settings.on_callback, pattern=r"^setmodel:"))
+
+    # Persistent reply-keyboard taps → matching handlers (before the catch-all)
+    app.add_handler(MessageHandler(filters.Text(menu.MENU_LABELS), menu.menu_router))
 
     # Catch-all text router — MUST be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, actions.route_text))

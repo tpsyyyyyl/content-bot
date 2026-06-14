@@ -1,10 +1,23 @@
 """Core feature handlers: /generate, /translate, /summarize, /image, text router."""
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from .. import ai, db, image
-from ..config import DAILY_LIMIT
-from ..keyboards import content_types_kb, languages_kb, save_template_kb
+from ..config import ADMIN_TELEGRAM_ID, DAILY_LIMIT, IMAGE_RATIOS
+from ..keyboards import (
+    content_types_kb,
+    image_ratio_kb,
+    languages_kb,
+    length_kb,
+    main_menu_kb,
+    result_kb,
+    tone_kb,
+)
+from ._reply import reply_chunks
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -27,6 +40,28 @@ async def _ensure_quota(update: Update, telegram_id: int, user_id: int) -> bool:
         )
         return False
     return True
+
+
+def _kind_of(action: str, params: dict) -> str:
+    """Map an action to the db history `type` value."""
+    if action == "generate":
+        return params["content_type"]
+    return action  # "translate" / "summarize"
+
+
+def _produce(action: str, params: dict, text: str, model_key: str | None) -> str:
+    """Run the AI call for a text action and return the result."""
+    if action == "generate":
+        return ai.generate(
+            params["content_type"],
+            text,
+            tone=params.get("tone"),
+            length=params.get("length"),
+            model_key=model_key,
+        )
+    if action == "translate":
+        return ai.translate(params["lang"], text, model_key=model_key)
+    return ai.summarize(text, model_key=model_key)
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +88,7 @@ async def summarize_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def image_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """/image — generate immediately if args given, otherwise ask for a prompt."""
+    """/image — generate immediately (square) if args given, else show ratio picker."""
     telegram_id, user_id = _identify(update)
     if context.args:
         prompt = " ".join(context.args)
@@ -68,29 +103,81 @@ async def image_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         db.record_generation(user_id, "image", prompt, "<image>")
         await update.message.reply_photo(photo=photo_bytes, caption=prompt[:200])
     else:
-        context.user_data["pending"] = {"action": "image"}
-        await update.message.reply_text("🎨 Send a prompt describing the image.")
+        await update.message.reply_text("🎨 Choose an image format:", reply_markup=image_ratio_kb())
+
+
+async def cancel_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/cancel — drop any pending action and show the main menu."""
+    context.user_data.pop("pending", None)
+    is_admin = update.effective_user.id == ADMIN_TELEGRAM_ID
+    await update.message.reply_text("❌ Cancelled.", reply_markup=main_menu_kb(is_admin=is_admin))
 
 
 # ---------------------------------------------------------------------------
-# Callback handler for gen: and tr: prefixes
+# Callback handler for gen:/gtone:/glen:/tr:/imgr:/regen: prefixes
 # ---------------------------------------------------------------------------
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle gen:<key> and tr:<code> inline button taps."""
+    """Handle inline button taps for the generate/translate/image flows."""
     query = update.callback_query
     await query.answer()
     data = query.data
 
     if data.startswith("gen:"):
-        key = data[len("gen:"):]
-        context.user_data["pending"] = {"action": "generate", "content_type": key}
+        content_type = data[len("gen:"):]
+        await query.edit_message_text("Choose a tone:", reply_markup=tone_kb(content_type))
+
+    elif data.startswith("gtone:"):
+        _, content_type, tone = data.split(":", 2)
+        await query.edit_message_text("Choose a length:", reply_markup=length_kb(content_type, tone))
+
+    elif data.startswith("glen:"):
+        _, content_type, tone, length = data.split(":", 3)
+        context.user_data["pending"] = {
+            "action": "generate",
+            "content_type": content_type,
+            "tone": tone,
+            "length": length,
+        }
         await query.edit_message_text("✏️ Now send your brief / topic.")
 
     elif data.startswith("tr:"):
         code = data[len("tr:"):]
         context.user_data["pending"] = {"action": "translate", "lang": code}
         await query.edit_message_text("💬 Send the text you want translated.")
+
+    elif data.startswith("imgr:"):
+        ratio = data[len("imgr:"):]
+        context.user_data["pending"] = {"action": "image", "ratio": ratio}
+        await query.edit_message_text("🎨 Send a prompt describing the image.")
+
+    elif data.startswith("regen:"):
+        await _regenerate(update, context)
+
+
+async def _regenerate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Re-run the last text generation with the same inputs."""
+    query = update.callback_query
+    last = context.user_data.get("last")
+    if not last or last.get("action") not in ("generate", "translate", "summarize"):
+        await query.message.reply_text("⚠️ Nothing to regenerate yet.")
+        return
+
+    telegram_id, user_id = _identify(update)
+    if not await _ensure_quota(update, telegram_id, user_id):
+        return
+
+    await query.message.reply_chat_action("typing")
+    model_key = db.get_model_key(user_id, ai.DEFAULT_MODEL_KEY)
+    try:
+        result = _produce(last["action"], last, last["input"], model_key)
+    except RuntimeError as exc:
+        await query.message.reply_text(str(exc))
+        return
+
+    db.record_generation(user_id, last["kind"], last["input"], result)
+    last["result"] = result
+    await reply_chunks(query.message, result, result_kb())
 
 
 # ---------------------------------------------------------------------------
@@ -123,45 +210,34 @@ async def route_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not await _ensure_quota(update, telegram_id, user_id):
         return
 
-    await update.message.reply_chat_action("typing")
-
-    if action == "generate":
-        kind = pending["content_type"]
+    if action in ("generate", "translate", "summarize"):
+        await update.message.reply_chat_action("typing")
+        model_key = db.get_model_key(user_id, ai.DEFAULT_MODEL_KEY)
         try:
-            result = ai.generate(kind, text)
+            result = _produce(action, pending, text, model_key)
         except RuntimeError as exc:
             await update.message.reply_text(str(exc))
             return
+        kind = _kind_of(action, pending)
         db.record_generation(user_id, kind, text, result)
-        context.user_data["last"] = {"type": kind, "content": result}
-        await update.message.reply_text(result, reply_markup=save_template_kb())
-
-    elif action == "translate":
-        kind = "translate"
-        try:
-            result = ai.translate(pending["lang"], text)
-        except RuntimeError as exc:
-            await update.message.reply_text(str(exc))
-            return
-        db.record_generation(user_id, kind, text, result)
-        context.user_data["last"] = {"type": kind, "content": result}
-        await update.message.reply_text(result, reply_markup=save_template_kb())
-
-    elif action == "summarize":
-        kind = "summarize"
-        try:
-            result = ai.summarize(text)
-        except RuntimeError as exc:
-            await update.message.reply_text(str(exc))
-            return
-        db.record_generation(user_id, kind, text, result)
-        context.user_data["last"] = {"type": kind, "content": result}
-        await update.message.reply_text(result, reply_markup=save_template_kb())
+        context.user_data["last"] = {
+            "action": action,
+            "kind": kind,
+            "input": text,
+            "result": result,
+            "content_type": pending.get("content_type"),
+            "tone": pending.get("tone"),
+            "length": pending.get("length"),
+            "lang": pending.get("lang"),
+        }
+        await reply_chunks(update.message, result, result_kb())
 
     elif action == "image":
+        ratio = pending.get("ratio", "square")
+        _, width, height = IMAGE_RATIOS.get(ratio, IMAGE_RATIOS["square"])
         await update.message.reply_chat_action("upload_photo")
         try:
-            photo_bytes = image.generate_image(text)
+            photo_bytes = image.generate_image(text, width, height)
         except RuntimeError as exc:
             await update.message.reply_text(str(exc))
             return
