@@ -60,6 +60,12 @@ def init_db() -> None:
         """
     )
     conn.commit()
+    # Idempotent migration: add language column if it doesn't exist yet.
+    # Works for both a fresh DB and an existing production DB on a Fly volume.
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(settings)")}
+    if "language" not in cols:
+        conn.execute("ALTER TABLE settings ADD COLUMN language TEXT")
+        conn.commit()
 
 
 def get_or_create_user(telegram_id: int, username: str | None) -> int:
@@ -163,6 +169,26 @@ def set_model_key(user_id: int, model_key: str) -> None:
         "INSERT INTO settings (user_id, model_key) VALUES (?, ?) "
         "ON CONFLICT(user_id) DO UPDATE SET model_key = excluded.model_key",
         (user_id, model_key),
+    )
+    conn.commit()
+
+
+def get_lang(user_id: int) -> str | None:
+    """Return the user's chosen language code, or None if not yet set."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT language FROM settings WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    return row["language"] if row else None
+
+
+def set_lang(user_id: int, lang: str) -> None:
+    """Persist the user's language choice (upsert)."""
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO settings (user_id, language) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET language = excluded.language",
+        (user_id, lang),
     )
     conn.commit()
 

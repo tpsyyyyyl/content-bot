@@ -37,6 +37,7 @@ def main() -> None:
     app.add_handler(CallbackQueryHandler(actions.on_callback, pattern=r"^(gen|tr|gtone|glen|imgr|regen):"))
     app.add_handler(CallbackQueryHandler(library.on_callback, pattern=r"^(tpluse|tplsave)"))
     app.add_handler(CallbackQueryHandler(settings.on_callback, pattern=r"^setmodel:"))
+    app.add_handler(CallbackQueryHandler(settings.on_setlang, pattern=r"^setlang:"))
 
     # Persistent reply-keyboard taps → matching handlers (before the catch-all)
     app.add_handler(MessageHandler(filters.Text(menu.MENU_LABELS), menu.menu_router))

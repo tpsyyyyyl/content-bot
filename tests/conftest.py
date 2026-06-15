@@ -32,6 +32,7 @@ def fresh_db():
 def _make_message():
     return SimpleNamespace(
         text=None,
+        chat_id=1,
         reply_text=AsyncMock(),
         reply_photo=AsyncMock(),
         reply_chat_action=AsyncMock(),

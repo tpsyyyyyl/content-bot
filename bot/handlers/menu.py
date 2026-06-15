@@ -3,20 +3,28 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from .. import keyboards as kb
+from .. import i18n
 from . import actions, admin, basic, library
 
-# Button label -> handler that already implements the matching /command.
-_DISPATCH = {
-    kb.BTN_GENERATE: actions.generate_cmd,
-    kb.BTN_TRANSLATE: actions.translate_cmd,
-    kb.BTN_SUMMARIZE: actions.summarize_cmd,
-    kb.BTN_IMAGE: actions.image_cmd,
-    kb.BTN_HISTORY: library.history_cmd,
-    kb.BTN_TEMPLATES: library.templates_cmd,
-    kb.BTN_HELP: basic.help_cmd,
-    kb.BTN_STATS: admin.stats_cmd,
-    kb.BTN_TOP: admin.top_cmd,
+# Map: action_key -> handler
+_ACTION_HANDLERS = {
+    "generate": actions.generate_cmd,
+    "translate": actions.translate_cmd,
+    "summarize": actions.summarize_cmd,
+    "image": actions.image_cmd,
+    "history": library.history_cmd,
+    "templates": library.templates_cmd,
+    "help": basic.help_cmd,
+    "stats": admin.stats_cmd,
+    "top": admin.top_cmd,
 }
+
+# Build _DISPATCH mapping label (both langs) -> handler
+_DISPATCH = {}
+for _action_key, _handler in _ACTION_HANDLERS.items():
+    _i18n_key = kb.MENU_BUTTONS[_action_key]
+    for _lang in ("en", "uk"):
+        _DISPATCH[i18n.t(_i18n_key, _lang)] = _handler
 
 # Exact strings the MessageHandler filter should match.
 MENU_LABELS = tuple(_DISPATCH)
