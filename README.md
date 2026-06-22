@@ -2,9 +2,6 @@
 
 A multi-purpose AI Telegram bot for content generation, translation, summarization, and image generation — powered by Groq and Pollinations.ai.
 
-Demo: @YourBotName
-<!-- TODO: add demo GIF -->
-
 ---
 
 ## ✨ Features
@@ -41,7 +38,7 @@ Free tier: **10 AI requests per day** per user. Resets at midnight UTC.
 
 ```bash
 # 1. Clone and enter the project
-git clone https://github.com/youruser/content-bot.git
+git clone https://github.com/tpsyyyyyl/content-bot.git
 cd content-bot
 
 # 2. Create virtual environment
